@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Um pipeline que converte arquivos CSV do S3 para JSON usando Lambda. (v6 - Correção de Indentação)
+
+Resources:
+  # 1. Bucket S3 de Entrada
+  EntradaCSVBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-input-csv-bucket"
+      Tags:
+        - Key: Project
+          Value: CsvToJsonProcessor
+        - Key: Environment
+          Value: Dev
+
+  # 2. Bucket S3 de Saída
+  SaidaJSONBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-output-json-bucket"
+      Tags:
+        - Key: Project
+          Value: CsvToJsonProcessor
+        - Key: Environment
+          Value: Dev
+
+  # 3. IAM Role (Permissões de Execução) para a Função Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ['lambda.amazonaws.com']
+            Action: ['sts:AssumeRole']
+      Policies:
+        - PolicyName: S3LambdaAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                Resource: !Sub "${EntradaCSVBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                Resource: !Sub "${SaidaJSONBucket.Arn}/*"
+      Tags:
+        - Key: Project
+          Value: CsvToJsonProcessor
+        - Key: Environment
+          Value: Dev
+
+  # 4. A Função Lambda
+  ProcessarCSVFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: processar_csv/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      MemorySize: 128
+      Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          OUTPUT_BUCKET_NAME: !Ref SaidaJSONBucket
+      Tags:
+        - Key: Project
+          Value: CsvToJsonProcessor
+        - Key: Environment
+          Value: Dev
+
+  # 5. Permissão de Invocação para a Lambda
+  LambdaInvokePermissionForS3:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt ProcessarCSVFunction.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: 's3.amazonaws.com'
+      SourceArn: !GetAtt EntradaCSVBucket.Arn
+
+  # 6. Configuração de Evento S3 (o "Trigger")
+  EntradaCSVBucketS3Event:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref EntradaCSVBucket
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: '.csv'
+            Function: !GetAtt ProcessarCSVFunction.Arn
+    # CORREÇÃO AQUI: 'DependsOn' está FORA do bloco 'Properties', no nível correto
+    DependsOn: LambdaInvokePermissionForS3 
+
+Outputs:
+  InputBucketName:
+    Description: "Nome do Bucket S3 para upload de arquivos CSV"
+    Value: !Ref EntradaCSVBucket
+  OutputBucketName:
+    Description: "Nome do Bucket S3 onde os JSONs processados são salvos"
+    Value: !Ref SaidaJSONBucket
+  LambdaFunctionName:
+    Description: "Nome da função Lambda"
+    Value: !Ref ProcessarCSVFunction
