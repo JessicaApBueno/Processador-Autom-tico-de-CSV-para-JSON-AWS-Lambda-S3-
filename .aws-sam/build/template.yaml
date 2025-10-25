@@ -1,7 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: "Um pipeline que converte arquivos CSV do S3 para JSON usando Lambda.\
-  \ (v4 - Solu\xE7\xE3o de Ciclo)\n"
+Description: 'Um pipeline que converte arquivos CSV do S3 para JSON usando Lambda.
+  (v17 - Role Independente)
+
+  '
 Resources:
   EntradaCSVBucket:
     Type: AWS::S3::Bucket
@@ -9,16 +11,20 @@ Resources:
       BucketName:
         Fn::Sub: ${AWS::StackName}-input-csv-bucket
       Tags:
-        Project: CsvToJsonProcessor
-        Environment: Dev
+      - Key: Project
+        Value: CsvToJsonProcessor
+      - Key: Environment
+        Value: Dev
   SaidaJSONBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName:
         Fn::Sub: ${AWS::StackName}-output-json-bucket
       Tags:
-        Project: CsvToJsonProcessor
-        Environment: Dev
+      - Key: Project
+        Value: CsvToJsonProcessor
+      - Key: Environment
+        Value: Dev
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -41,18 +47,14 @@ Resources:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-            Resource:
-              Fn::Sub: arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-ProcessarCSVFunction-*:*
+            Resource: arn:aws:logs:*:*:*
           - Effect: Allow
             Action:
             - s3:GetObject
-            Resource:
-              Fn::Sub: ${EntradaCSVBucket.Arn}/*
-          - Effect: Allow
-            Action:
             - s3:PutObject
             Resource:
-              Fn::Sub: ${SaidaJSONBucket.Arn}/*
+            - arn:aws:s3:::*
+            - arn:aws:s3:::*/*
       Tags:
       - Key: Project
         Value: CsvToJsonProcessor
@@ -74,42 +76,23 @@ Resources:
         Variables:
           OUTPUT_BUCKET_NAME:
             Ref: SaidaJSONBucket
+      Events:
+        FileUpload:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: EntradaCSVBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                - Name: suffix
+                  Value: .csv
       Tags:
         Project: CsvToJsonProcessor
         Environment: Dev
     Metadata:
       SamResourceId: ProcessarCSVFunction
-  LambdaInvokePermissionForS3:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName:
-        Fn::GetAtt:
-        - ProcessarCSVFunction
-        - Arn
-      Action: lambda:InvokeFunction
-      Principal: s3.amazonaws.com
-      SourceArn:
-        Fn::GetAtt:
-        - EntradaCSVBucket
-        - Arn
-  EntradaCSVBucketS3Event:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName:
-        Ref: EntradaCSVBucket
-      NotificationConfiguration:
-        LambdaConfigurations:
-        - Event: s3:ObjectCreated:*
-          Filter:
-            S3Key:
-              Rules:
-              - Name: suffix
-                Value: .csv
-          Function:
-            Fn::GetAtt:
-            - ProcessarCSVFunction
-            - Arn
-    DependsOn: LambdaInvokePermissionForS3
 Outputs:
   InputBucketName:
     Description: Nome do Bucket S3 para upload de arquivos CSV
