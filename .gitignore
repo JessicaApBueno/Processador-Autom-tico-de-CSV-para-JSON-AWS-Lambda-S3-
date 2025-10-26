@@ -1,0 +1,22 @@
+# Ambiente virtual do Python
+# Contém todos os pacotes instalados, específico da sua máquina
+venv/
+
+# Artefatos de build do AWS SAM
+# Pasta gerada pelo "sam build"
+.aws-sam/
+
+# Arquivo de configuração de deploy do SAM
+# Opcional, mas recomendado ignorar para que cada
+# desenvolvedor possa ter suas próprias configurações de deploy (ex: stack-name)
+samconfig.toml
+
+# Arquivos de cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arquivos de sistema operacional (macOS e Windows)
+.DS_Store
+Thumbs.db
