@@ -14,6 +14,26 @@ O projeto é totalmente gerenciado com práticas de DevOps usando o **AWS SAM (S
 
 ## Arquitetura do Projeto
 
+### 🏗️ Arquitetura da Solução
+
+```mermaid
+graph LR
+    subgraph AWS_Cloud [Nuvem AWS]
+        A[(S3 Bucket: Input)] -- "Evento: ObjectCreated" --> B[AWS Lambda]
+        B -- "Processamento / Conversão" --> B
+        B -- "Upload .json" --> C[(S3 Bucket: Output)]
+    end
+
+    User((Usuário)) -- "Envia arquivo .csv" --> A
+    B -.-> D[CloudWatch Logs]
+
+    style A fill:#FF9900,stroke:#232F3E,color:white
+    style B fill:#FF9900,stroke:#232F3E,color:white
+    style C fill:#FF9900,stroke:#232F3E,color:white
+    style D fill:#3F8624,stroke:#232F3E,color:white
+    style AWS_Cloud fill:#f9f9f9,stroke:#232F3E,stroke-width:2px
+````
+
 O fluxo de dados é simples e 100% serverless:
 
 1.  Um usuário (ou sistema) faz o upload de um arquivo (ex: `vendas.csv`) no **Bucket S3 de Entrada**.
